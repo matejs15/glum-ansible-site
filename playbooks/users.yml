@@ -1,0 +1,22 @@
+
+---
+- name: Sprava uzivatele a SSH klicu
+  hosts: glum
+  become: true
+
+  tasks:
+    - name: Zajistit existenci uzivatele
+      ansible.builtin.user:
+        name: "{{ server_user }}"
+        state: present
+        create_home: true
+        update_password: on_create
+
+    - name: Nastavit autorizovane SSH klice
+      ansible.posix.authorized_key:
+        user: "{{ server_user }}"
+        key: "{{ ssh_public_keys | join('\n') }}"
+        state: present
+        exclusive: true
+        manage_dir: true
+      when: ssh_public_keys | length > 0

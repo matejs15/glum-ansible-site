@@ -1,0 +1,7 @@
+
+---
+server_user: user123
+
+ssh_public_keys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICMPek6tZ36ZG5gI653TJa+17apPhjXUVkb5IwuUtxVF matas@notebook123"
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGcXc5Sp13pAcVt3iLR+b6uY40xjmFkqhkcPRkR8AxiQ matas@notebook123"

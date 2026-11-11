@@ -6,3 +6,6 @@
 ---
 - name: Import cowsay playbook
   ansible.builtin.import_playbook: playbooks/cowsay.yml
+
+- name: Import users
+  ansible.builtin.import_playbook: playbooks/users.yml
