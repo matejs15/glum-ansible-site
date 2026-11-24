@@ -1,0 +1,118 @@
+---
+- name: Instalace a konfigurace Samby
+  hosts: glum
+  become: true
+
+  tasks:
+    - name: Instalace balicku
+      ansible.builtin.dnf:
+        name:
+          - samba
+          - samba-client
+          - samba-common-tools
+          - firewalld
+          - python3-firewall
+          - policycoreutils-python-utils
+        state: present
+
+    - name: Vytvoreni skupiny pro Sambu
+      ansible.builtin.group:
+        name: "{{ samba_user }}"
+        state: present
+
+    - name: Vytvoreni uzivatele Samby
+      ansible.builtin.user:
+        name: "{{ samba_user }}"
+        group: "{{ samba_user }}"
+        state: present
+        create_home: false
+        shell: /sbin/nologin
+        password_lock: true
+
+    - name: Vytvoreni hlavniho adresare
+      ansible.builtin.file:
+        path: /srv/samba
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Vytvoreni sdilenych slozek
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ samba_user }}"
+        group: "{{ samba_user }}"
+        mode: "0700"
+      loop: "{{ samba_shares }}"
+
+    - name: Nastaveni SELinux kontextu
+      community.general.sefcontext:
+        target: "{{ item.path | regex_escape }}(/.*)?"
+        setype: samba_share_t
+        state: present
+      loop: "{{ samba_shares }}"
+
+    - name: Aplikovani SELinux kontextu
+      ansible.builtin.command:
+        cmd: restorecon -Rv /srv/samba
+      register: restorecon_result
+      changed_when: restorecon_result.stdout | trim | length > 0
+      when: not ansible_check_mode
+
+    - name: Konfigurace Samby
+      ansible.builtin.template:
+        src: ../templates/smb.conf.j2
+        dest: /etc/samba/smb.conf
+        owner: root
+        group: root
+        mode: "0644"
+        backup: true
+        validate: "testparm -s %s"
+      notify: Restart Samby
+
+    - name: Zapnuti firewalld
+      ansible.builtin.systemd_service:
+        name: firewalld
+        enabled: true
+        state: started
+
+    - name: Prirazeni siti TUL do zony home
+      ansible.posix.firewalld:
+        zone: "{{ samba_firewall_zone }}"
+        source: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ samba_allowed_networks }}"
+
+    - name: Povoleni Samby pro sit TUL
+      ansible.posix.firewalld:
+        zone: "{{ samba_firewall_zone }}"
+        service: samba
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Zakazani Samby ve verejne zone
+      ansible.posix.firewalld:
+        zone: public
+        service: samba
+        permanent: true
+        immediate: true
+        state: disabled
+
+    
+    - name: Spusteni Samba serveru
+      ansible.builtin.systemd_service:
+        name: smb
+        enabled: true
+        state: started
+      when: not ansible_check_mode
+
+
+  handlers:
+    - name: Restart Samby
+      ansible.builtin.systemd_service:
+        name: smb
+        state: restarted
